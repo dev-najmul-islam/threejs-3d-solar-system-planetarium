@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Interactive Solar System & Exoplanet Planetarium - Three.js</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; background: #03050a; overflow: hidden; font-family: 'Inter', sans-serif; }
+        #solarCanvas { width: 100%; height: 100%; cursor: grab; touch-action: none; }
+    </style>
+</head>
+<body class="h-screen text-white flex flex-col select-none">
+
+    <!-- Top Planetarium Telemetry Bar -->
+    <header class="h-14 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 sm:px-6 flex items-center justify-between z-20">
+        <div class="flex items-center gap-3">
+            <span class="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-cyan-500 flex items-center justify-center text-lg shadow-lg">🪐</span>
+            <div>
+                <h1 class="font-bold text-sm sm:text-base text-white">3D Interactive Solar System & Planetarium Explorer</h1>
+                <p class="text-[10px] text-amber-400 font-mono">Three.js Orbital Mechanics • Live NASA Telemetry Inspector</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <span class="text-xs font-mono text-slate-400 hidden sm:inline">Time Warp:</span>
+            <input type="range" id="speedSlider" min="0" max="4" step="0.2" value="1" class="w-24 accent-cyan-400">
+        </div>
+    </header>
+
+    <div class="flex-1 flex flex-col md:flex-row relative overflow-hidden">
+        <!-- 3D Space Viewport -->
+        <div class="flex-1 relative min-h-[280px] md:min-h-0">
+            <canvas id="solarCanvas"></canvas>
+            <div class="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-3.5 py-1.5 rounded-2xl text-[11px] sm:text-xs text-slate-300 pointer-events-none">
+                🌌 Drag / Swipe to Orbit 360°
+            </div>
+        </div>
+
+        <!-- NASA Telemetry Inspector Sidebar -->
+        <div class="w-full md:w-80 bg-slate-900/95 border-t md:border-t-0 md:border-l border-slate-800 p-4 sm:p-5 space-y-5 z-20 overflow-y-auto max-h-[45vh] md:max-h-none">
+            <div>
+                <label class="text-xs font-bold uppercase tracking-wider text-cyan-400 block mb-2.5">🪐 Select Celestial Body</label>
+                <div class="grid grid-cols-2 gap-2" id="planetButtons"></div>
+            </div>
+
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h2 id="pName" class="font-bold text-lg text-white">Earth</h2>
+                    <span id="pType" class="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-400 text-[10px] font-mono">TERRESTRIAL</span>
+                </div>
+                <p id="pDesc" class="text-xs text-slate-400 leading-relaxed">
+                    Third planet from the Sun and the only astronomical object known to harbor liquid oceans and life.
+                </p>
+                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 font-mono text-xs">
+                    <div>
+                        <span class="text-[10px] text-slate-500 block">ORBITAL SPEED</span>
+                        <span id="pSpeed" class="text-cyan-400 font-bold">29.78 km/s</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-500 block">MOONS</span>
+                        <span id="pMoons" class="text-amber-400 font-bold">1 (Luna)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const planetsData = [
+            { name: 'Mercury', color: 0x94a3b8, radius: 0.38, dist: 3.2, speed: 0.028, type: 'ROCKY', vel: '47.36 km/s', moons: '0', desc: 'Smallest and innermost planet in the Solar System with extreme thermal swings.' },
+            { name: 'Venus', color: 0xfbbf24, radius: 0.55, dist: 4.6, speed: 0.021, type: 'TERRESTRIAL', vel: '35.02 km/s', moons: '0', desc: 'Wrapped in dense sulfuric acid clouds with a runaway greenhouse atmosphere.' },
+            { name: 'Earth', color: 0x06b6d4, radius: 0.62, dist: 6.2, speed: 0.016, type: 'OCEAN WORLD', vel: '29.78 km/s', moons: '1 (Luna)', desc: 'Third planet from the Sun with nitrogen-oxygen atmosphere and magnetic shield.' },
+            { name: 'Mars', color: 0xf43f5e, radius: 0.46, dist: 7.8, speed: 0.013, type: 'RED PLANET', vel: '24.07 km/s', moons: '2 (Phobos, Deimos)', desc: 'Home to Olympus Mons and Valles Marineris canyon system.' },
+            { name: 'Jupiter', color: 0xf97316, radius: 1.25, dist: 10.4, speed: 0.008, type: 'GAS GIANT', vel: '13.07 km/s', moons: '95 Moons', desc: 'Largest planet in the Solar System featuring the Great Red Spot anticyclone.' },
+            { name: 'Saturn', color: 0xeab308, radius: 1.05, dist: 13.4, speed: 0.006, type: 'RINGED GIANT', vel: '9.68 km/s', moons: '146 Moons', desc: 'Adorned with a dazzling system of icy planetary rings and hexagon polar storm.', hasRings: true },
+            { name: 'Uranus', color: 0x38bdf8, radius: 0.78, dist: 16.0, speed: 0.004, type: 'ICE GIANT', vel: '6.80 km/s', moons: '28 Moons', desc: 'Rotates on its side with an axial tilt of 97.7 degrees.' },
+            { name: 'Neptune', color: 0x3b82f6, radius: 0.75, dist: 18.4, speed: 0.003, type: 'ICE GIANT', vel: '5.43 km/s', moons: '16 Moons', desc: 'Farthest known planet with supersonic methane winds reaching 2,100 km/h.' }
+        ];
+
+        const btnContainer = document.getElementById('planetButtons');
+        planetsData.forEach((p, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'py-2 px-3 rounded-xl bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 text-slate-200 font-bold text-xs transition text-left';
+            btn.textContent = p.name;
+            btn.onclick = () => selectPlanet(idx);
+            btnContainer.appendChild(btn);
+        });
+
+        function selectPlanet(idx) {
+            const p = planetsData[idx];
+            document.getElementById('pName').textContent = p.name;
+            document.getElementById('pType').textContent = p.type;
+            document.getElementById('pDesc').textContent = p.desc;
+            document.getElementById('pSpeed').textContent = p.vel;
+            document.getElementById('pMoons').textContent = p.moons;
+        }
+
+        const canvas = document.getElementById('solarCanvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 300);
+        camera.position.set(0, 16, 24);
+        camera.lookAt(0, 0, 0);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+        const sunLight = new THREE.PointLight(0xfbbf24, 2.6, 120);
+        scene.add(sunLight);
+
+        const systemGroup = new THREE.Group();
+        scene.add(systemGroup);
+
+        // Glowing Sun Core
+        const sunMesh = new THREE.Mesh(
+            new THREE.SphereGeometry(1.9, 32, 32),
+            new THREE.MeshBasicMaterial({ color: 0xf59e0b })
+        );
+        systemGroup.add(sunMesh);
+
+        // Starfield
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(1800 * 3);
+        for (let i = 0; i < 1800 * 3; i++) starPos[i] = (Math.random() - 0.5) * 140;
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.18 })));
+
+        // Planets + Orbit Rings
+        const planetMeshes = [];
+        planetsData.forEach((p, idx) => {
+            // Orbit Path Ring
+            const orbitGeo = new THREE.RingGeometry(p.dist - 0.03, p.dist + 0.03, 64);
+            const orbitMat = new THREE.MeshBasicMaterial({ color: 0x334155, side: THREE.DoubleSide });
+            const orbitRing = new THREE.Mesh(orbitGeo, orbitMat);
+            orbitRing.rotation.x = Math.PI / 2;
+            systemGroup.add(orbitRing);
+
+            const mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(p.radius, 24, 24),
+                new THREE.MeshStandardMaterial({ color: p.color, roughness: 0.5, metalness: 0.15 })
+            );
+
+            if (p.hasRings) {
+                const rGeo = new THREE.RingGeometry(p.radius * 1.35, p.radius * 2.1, 32);
+                const rMat = new THREE.MeshBasicMaterial({ color: 0xfde047, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+                const ring = new THREE.Mesh(rGeo, rMat);
+                ring.rotation.x = Math.PI / 2.3;
+                mesh.add(ring);
+            }
+
+            systemGroup.add(mesh);
+            planetMeshes.push({ mesh, data: p, angle: idx * 1.1 });
+        });
+
+        let isDragging = false, prevX = 0, prevY = 0;
+        canvas.addEventListener('pointerdown', (e) => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+        window.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            systemGroup.rotation.y += (e.clientX - prevX) * 0.006;
+            systemGroup.rotation.x = Math.max(-0.6, Math.min(0.8, systemGroup.rotation.x + (e.clientY - prevY) * 0.006));
+            prevX = e.clientX; prevY = e.clientY;
+        });
+        window.addEventListener('pointerup', () => isDragging = false);
+
+        function resize() {
+            const w = canvas.parentElement.clientWidth;
+            const h = canvas.parentElement.clientHeight;
+            renderer.setSize(w, h);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const warp = parseFloat(document.getElementById('speedSlider').value || 1);
+            sunMesh.rotation.y += 0.004;
+            planetMeshes.forEach(item => {
+                item.angle += item.data.speed * warp;
+                item.mesh.position.x = Math.cos(item.angle) * item.data.dist;
+                item.mesh.position.z = Math.sin(item.angle) * item.data.dist;
+                item.mesh.rotation.y += 0.02;
+            });
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>
